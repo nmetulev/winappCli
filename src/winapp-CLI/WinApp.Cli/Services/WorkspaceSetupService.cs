@@ -340,6 +340,7 @@ internal class WorkspaceSetupService(
                     partialResult = await taskContext.AddSubTaskAsync("Adding NuGet packages to project", async (taskContext, cancellationToken) =>
                     {
                         usedVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        var failedPackages = new List<string>();
 
                         // When SdkInstallMode is None, still use Stable versions for build tools packages
                         var versionQueryMode = sdkInstallMode == SdkInstallMode.None ? SdkInstallMode.Stable : sdkInstallMode;
@@ -408,7 +409,21 @@ internal class WorkspaceSetupService(
                                 {
                                     return (1, $"Failed to add {packageName} package reference");
                                 }
+                                failedPackages.Add(packageName);
                             }
+                        }
+
+                        if (failedPackages.Count > 0)
+                        {
+                            var failedList = string.Join(", ", failedPackages);
+                            if (usedVersions.Count > 0)
+                            {
+                                return (0, $"NuGet packages added to [underline]{csprojFile.Name}[/], but failed to add: {failedList}");
+                            }
+
+                            // Only optional package failures reach this point. Required package failures
+                            // already return non-zero in the catch block above, so do not abort init here.
+                            return (0, $"Failed to add optional NuGet packages: {failedList}");
                         }
 
                         return (0, $"NuGet packages added to [underline]{csprojFile.Name}[/]");
